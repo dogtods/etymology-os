@@ -81,7 +81,7 @@ def analyze_text_with_llm(text):
     if not configure_genai():
         return None, "API Key not configured. Please set GOOGLE_API_KEY in secrets or env."
     
-    model = genai.GenerativeModel('gemini-2.0-flash')
+    model = genai.GenerativeModel('gemini-flash-lite-latest')
     
     kernel_context = json.dumps(ETYMOLOGY_KERNEL, ensure_ascii=False)
     
