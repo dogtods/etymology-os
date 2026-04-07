@@ -10,7 +10,7 @@ export async function generateUnknownWord() {
     throw new Error('API key is not set. Please configure it in Settings.');
   }
 
-  const endpoint = `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${apiKey}`;
+  const endpoint = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${apiKey}`;
 
   // Use a structured prompt to ensure we get exactly what we need
   const prompt = `
