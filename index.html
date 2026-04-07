@@ -1,0 +1,336 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="description" content="英語の語源を分解・可視化し、クイズで学習するインタラクティブな語源学習エンジン">
+  <title>Etymology OS — 語源学習エンジン</title>
+
+  <!-- Stylesheets -->
+  <link rel="stylesheet" href="css/index.css">
+  <link rel="stylesheet" href="css/components.css">
+  <link rel="stylesheet" href="css/animations.css">
+
+  <!-- Inline critical styles for decompose-specific elements -->
+  <style>
+    .decompose-word-display {
+      text-align: center;
+      margin-bottom: var(--sp-4);
+    }
+    .decompose-word-title {
+      font-size: var(--text-4xl);
+      font-weight: 800;
+      letter-spacing: 0.03em;
+      background: linear-gradient(135deg, var(--color-prefix), var(--color-root), var(--color-suffix));
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      background-clip: text;
+    }
+    .heuristic-badge {
+      display: inline-block;
+      padding: var(--sp-1) var(--sp-3);
+      background: var(--accent-bg);
+      border: 1px solid hsla(280, 70%, 65%, 0.2);
+      border-radius: var(--radius-full);
+      font-size: var(--text-xs);
+      color: var(--accent);
+      margin-top: var(--sp-2);
+    }
+    #decompose-suggestions {
+      display: none;
+      flex-wrap: wrap;
+      gap: var(--sp-2);
+      margin-top: var(--sp-3);
+    }
+    .suggestion-chip {
+      padding: var(--sp-1) var(--sp-3);
+      background: var(--surface);
+      border: 1px solid var(--glass-border);
+      border-radius: var(--radius-full);
+      color: var(--text-secondary);
+      font-family: var(--font-mono);
+      font-size: var(--text-sm);
+      cursor: pointer;
+      transition: all var(--transition-fast);
+    }
+    .suggestion-chip:hover {
+      color: var(--color-root);
+      border-color: var(--color-root);
+      background: var(--color-root-bg);
+    }
+    #quick-access-roots {
+      display: flex;
+      flex-wrap: wrap;
+      gap: var(--sp-2);
+      margin-top: var(--sp-4);
+    }
+    .quiz-question {
+      font-size: var(--text-xl);
+      font-weight: 600;
+      color: var(--text-primary);
+      margin-bottom: var(--sp-6);
+      min-height: 2em;
+    }
+    .drift-filter.active {
+      background: var(--accent);
+      color: white;
+      border-color: var(--accent);
+    }
+    .tab-label { }
+    @media (max-width: 600px) {
+      .tab-label { display: none; }
+    }
+  </style>
+</head>
+<body>
+  <div id="app">
+
+    <!-- ====== Header ====== -->
+    <header class="app-header">
+      <div class="container header-inner">
+        <div class="app-logo">
+          <div class="app-logo-icon">語</div>
+          <div>
+            <div class="app-title">Etymology OS</div>
+            <div class="app-subtitle">語源学習エンジン</div>
+          </div>
+        </div>
+        <nav class="tab-nav" role="tablist" aria-label="メインナビゲーション">
+          <button class="tab-btn active" data-tab="decompose" role="tab" aria-selected="true" id="tab-decompose">
+            <span class="tab-icon">📘</span>
+            <span class="tab-label">分解</span>
+          </button>
+          <button class="tab-btn" data-tab="network" role="tab" aria-selected="false" id="tab-network">
+            <span class="tab-icon">🕸️</span>
+            <span class="tab-label">ネットワーク</span>
+          </button>
+          <button class="tab-btn" data-tab="quiz" role="tab" aria-selected="false" id="tab-quiz">
+            <span class="tab-icon">🎯</span>
+            <span class="tab-label">クイズ</span>
+          </button>
+          <button class="tab-btn" data-tab="drift" role="tab" aria-selected="false" id="tab-drift">
+            <span class="tab-icon">🔍</span>
+            <span class="tab-label">ドリフト</span>
+          </button>
+        </nav>
+        <button class="btn btn-ghost" id="settings-btn" title="設定" style="width: 44px; height: 44px; padding: 0; display: flex; align-items: center; justify-content: center; border-radius: 50%;">
+          <span style="font-size: 1.2rem;">⚙️</span>
+        </button>
+      </div>
+    </header>
+
+    <!-- ====== Stats Bar ====== -->
+    <div class="container">
+      <div class="stats-bar">
+        <div class="stat-item">
+          <span>🏆 スコア:</span>
+          <span class="stat-value" id="stat-score">0</span>
+        </div>
+        <div class="stat-item">
+          <span>📚 学習済み:</span>
+          <span class="stat-value" id="stat-words">0</span>
+          <span>語</span>
+        </div>
+        <div class="stat-item">
+          <span>🎯 正答率:</span>
+          <span class="stat-value" id="stat-accuracy">0%</span>
+        </div>
+        <div class="stat-item">
+          <span>🔥 最高連続:</span>
+          <span class="stat-value" id="stat-streak">0</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- ====== Main Content ====== -->
+    <main class="main-content">
+      <div class="container">
+
+        <!-- ===== Section: Decompose ===== -->
+        <section class="section active" id="section-decompose" role="tabpanel" aria-labelledby="tab-decompose">
+          <div class="section-header">
+            <h1 class="section-title">📘 単語分解</h1>
+            <p class="section-desc text-ja">英単語を入力すると、接頭辞・語根・接尾辞に分解して語源を表示します。</p>
+          </div>
+
+          <div class="glass-card">
+            <div class="input-group">
+              <input
+                type="text"
+                id="decompose-input"
+                class="input-field"
+                placeholder="英単語を入力... (例: transformation)"
+                autocomplete="off"
+                spellcheck="false"
+              >
+              <div id="decompose-suggestions"></div>
+              <p class="input-hint">Enterキーで分解 ｜ 下のルートチップをクリックして例を表示</p>
+            </div>
+            <div id="quick-access-roots"></div>
+          </div>
+
+          <div id="decompose-result" style="display: none; margin-top: var(--sp-6);"></div>
+        </section>
+
+        <!-- ===== Section: Network ===== -->
+        <section class="section" id="section-network" role="tabpanel" aria-labelledby="tab-network">
+          <div class="section-header">
+            <h1 class="section-title">🕸️ ルートネットワーク</h1>
+            <p class="section-desc text-ja">語根をクリックすると関連する全ての単語がネットワークマップに表示されます。線の太さは習得度を表します。</p>
+          </div>
+
+          <div id="root-selector" class="root-selector"></div>
+
+          <div id="network-container" class="network-container">
+            <!-- SVG graph rendered here -->
+          </div>
+
+          <div id="network-info" class="network-info-panel" style="position: relative; margin-top: var(--sp-4);"></div>
+        </section>
+
+        <!-- ===== Section: Quiz ===== -->
+        <section class="section" id="section-quiz" role="tabpanel" aria-labelledby="tab-quiz">
+          <div class="section-header">
+            <h1 class="section-title">🎯 語源クイズ</h1>
+            <p class="section-desc text-ja">語根の知識を使って未知の単語の意味を推測するチャレンジ。語根の正解が最も重要です！</p>
+          </div>
+
+          <div class="quiz-container">
+            <!-- Quiz Intro -->
+            <div id="quiz-intro" class="glass-card" style="text-align: center;">
+              <div style="font-size: 3rem; margin-bottom: var(--sp-4);">🧠</div>
+              <h2 class="text-ja" style="font-size: var(--text-2xl); font-weight: 700; margin-bottom: var(--sp-3);">Etymology Guess に挑戦</h2>
+              <p class="text-ja" style="color: var(--text-secondary); margin-bottom: var(--sp-2); line-height: 1.8;">
+                単語の接頭辞と語根の意味を当ててから、<br>
+                全体の定義を推測してください。
+              </p>
+              <div style="display: flex; gap: var(--sp-4); justify-content: center; margin: var(--sp-6) 0; flex-wrap: wrap;">
+                <div class="glass-card glass-card-sm" style="flex: 1; min-width: 120px;">
+                  <div style="font-size: var(--text-2xl); font-weight: 700; color: var(--color-prefix);">+2pt</div>
+                  <div style="font-size: var(--text-xs); color: var(--text-muted);">接頭辞</div>
+                </div>
+                <div class="glass-card glass-card-sm" style="flex: 1; min-width: 120px;">
+                  <div style="font-size: var(--text-2xl); font-weight: 700; color: var(--color-root);">+3pt</div>
+                  <div style="font-size: var(--text-xs); color: var(--text-muted);">語根</div>
+                </div>
+                <div class="glass-card glass-card-sm" style="flex: 1; min-width: 120px;">
+                  <div style="font-size: var(--text-2xl); font-weight: 700; color: var(--color-suffix);">+1pt</div>
+                  <div style="font-size: var(--text-xs); color: var(--text-muted);">定義</div>
+                </div>
+              </div>
+
+              <!-- AI Toggle -->
+              <div class="toggle-wrapper" style="justify-content: center; margin-bottom: var(--sp-6);">
+                <div style="text-align: right; font-family: var(--font-ja); font-size: var(--text-sm);">
+                  <div style="font-weight: 600; color: var(--text-primary);">基本モード</div>
+                  <div style="color: var(--text-muted); font-size: var(--text-xs);">登録単語から出題</div>
+                </div>
+                <label class="toggle-switch">
+                  <input type="checkbox" id="ai-mode-toggle">
+                  <span class="toggle-slider"></span>
+                </label>
+                <div style="text-align: left; font-family: var(--font-ja); font-size: var(--text-sm);">
+                  <div style="font-weight: 600; color: var(--accent);">✨ AIモード</div>
+                  <div style="color: var(--text-muted); font-size: var(--text-xs);">LLMが未知語を生成</div>
+                </div>
+              </div>
+
+              <button class="btn btn-primary btn-lg" id="quiz-start-btn">
+                🚀 スタート
+              </button>
+            </div>
+
+            <!-- Quiz Area (hidden initially) -->
+            <div id="quiz-area" style="display: none;">
+              <!-- Score panel -->
+              <div class="quiz-score-panel">
+                <div>
+                  <span class="score-label">スコア</span>
+                  <span class="score-value" id="quiz-score-value">0</span>
+                </div>
+                <div class="streak-badge" id="quiz-streak-badge" style="display: none;">
+                  🔥 <span id="quiz-streak-value">0</span> 連続
+                </div>
+              </div>
+
+              <!-- Progress dots -->
+              <div class="quiz-progress" id="quiz-progress-dots"></div>
+
+              <!-- Word display -->
+              <div class="quiz-header">
+                <div class="quiz-word" id="quiz-current-word"></div>
+                <div class="quiz-step-label" id="quiz-step-label"></div>
+              </div>
+
+              <!-- Question -->
+              <div class="quiz-question text-ja" id="quiz-question"></div>
+
+              <!-- Options -->
+              <div class="quiz-options" id="quiz-options"></div>
+
+              <!-- Feedback -->
+              <div id="quiz-feedback-area"></div>
+
+              <!-- Controls -->
+              <div style="display: flex; justify-content: center; gap: var(--sp-3); margin-top: var(--sp-6);">
+                <button class="btn btn-primary btn-lg" id="quiz-next-btn" style="display: none;">
+                  次の問題 →
+                </button>
+                <button class="btn btn-ghost" id="quiz-skip-btn" style="display: none;">
+                  スキップ ⏭️
+                </button>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <!-- ===== Section: Drift ===== -->
+        <section class="section" id="section-drift" role="tabpanel" aria-labelledby="tab-drift">
+          <div class="section-header">
+            <h1 class="section-title">🔍 意味ドリフト</h1>
+            <p class="section-desc text-ja">語源的な意味と現代の定義を比較します。ギャップが大きい単語には記憶ストーリーが付いています。</p>
+          </div>
+
+          <div id="drift-controls" style="margin-bottom: var(--sp-6);"></div>
+          <div id="drift-stats" style="margin-bottom: var(--sp-4);"></div>
+          <div id="drift-cards"></div>
+          <div id="drift-pagination"></div>
+        </section>
+
+      </div>
+    </main>
+
+    <!-- Toast container -->
+    <div id="toast-container" class="toast-container"></div>
+
+    <!-- Confetti canvas -->
+    <canvas id="confetti-canvas"></canvas>
+
+  </div>
+
+  <!-- Settings Modal -->
+  <div class="modal-overlay" id="settings-modal">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h2 style="font-family: var(--font-ja); font-size: var(--text-2xl); margin: 0;">⚙️ 設定</h2>
+        <button class="modal-close" id="settings-close">&times;</button>
+      </div>
+      
+      <div style="margin-bottom: var(--sp-6);">
+        <label style="display: block; font-family: var(--font-ja); font-weight: 600; margin-bottom: var(--sp-2);">Gemini API キー (AI モード用)</label>
+        <p style="font-family: var(--font-ja); font-size: var(--text-sm); color: var(--text-muted); margin-bottom: var(--sp-3);">
+          AIモードで未知の単語を生成するには、Gemini APIキーが必要です。入力されたキーはお使いのブラウザ（ローカル）にのみ保存されます。
+        </p>
+        <input type="password" id="settings-api-key" class="input-field" placeholder="AIzaSy..." style="font-size: var(--text-base); padding: var(--sp-3);">
+      </div>
+
+      <div style="display: flex; justify-content: flex-end; gap: var(--sp-3);">
+        <button class="btn btn-secondary" id="settings-save-btn">保存して閉じる</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- App Script -->
+  <script type="module" src="js/app.js"></script>
+</body>
+</html>
